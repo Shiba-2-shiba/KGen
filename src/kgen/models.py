@@ -1,8 +1,8 @@
 import os
 import pathlib
-
+import subprocess  # <<< subprocessをインポート
 import torch
-from huggingface_hub import hf_hub_download
+# from huggingface_hub import hf_hub_download # <<< 不要になるのでコメントアウトまたは削除
 from transformers import LlamaForCausalLM, LlamaTokenizer
 
 from .logging import logger
@@ -56,25 +56,62 @@ if not os.path.isdir(model_dir):
     os.makedirs(model_dir, exist_ok=True)
 
 
+# =================================================================================
+# vv vv vv vv vv vv vv vv vv vv この関数を置き換えます vv vv vv vv vv vv vv vv vv vv
+# =================================================================================
+
 def download_gguf(model_name=model_list[0], gguf_name=gguf_name[-1]):
-    if os.path.isfile(model_dir / f"{model_name.split('/')[-1]}_{gguf_name}"):
-        logger.info(f"GGUF model {model_name} already exists")
-        return model_dir / f"{model_name.split('/')[-1]}_{gguf_name}"
-    logger.info(f"Downloading gguf model from {model_name}")
-    result = hf_hub_download(
+    """
+    huggingface-cli (hf) を使用してGGUFモデルをダウンロードします。
+    """
+    final_filename = f"{model_name.split('/')[-1]}_{gguf_name}"
+    final_filepath = model_dir / final_filename
+
+    # 既にファイルが存在する場合は処理を中断
+    if final_filepath.is_file():
+        logger.info(f"GGUF model {final_filename} already exists")
+        return final_filepath
+
+    logger.info(f"Downloading gguf model from {model_name} using hf command")
+
+    # hf download コマンドの構築
+    command = [
+        "hf", "download",
         model_name,
         gguf_name,
-        repo_type="model",
-        cache_dir=None,
-        local_dir=model_dir,
-        local_dir_use_symlinks=False,
-    )
-    new_name = model_dir / f"{model_name.split('/')[-1]}_{gguf_name}"
-    if os.path.isfile(new_name):
-        os.remove(new_name)
-    os.rename(result, new_name)
-    logger.info(f"Downloaded gguf model to {new_name}")
-    return new_name
+        "--repo-type", "model",
+        "--local-dir", str(model_dir)
+    ]
+
+    try:
+        # コマンドの実行
+        subprocess.run(command, check=True, capture_output=True, text=True)
+    except FileNotFoundError:
+        logger.error("hf command not found. Please ensure huggingface-hub is installed and in your PATH.")
+        raise
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to download model. Error: {e.stderr}")
+        raise
+
+    # ダウンロードされたファイルをリネーム
+    downloaded_path = model_dir / gguf_name
+    if downloaded_path.is_file():
+        if final_filepath.exists():
+            os.remove(final_filepath) # 既に同名ファイルがあれば削除
+        os.rename(downloaded_path, final_filepath)
+        logger.info(f"Downloaded gguf model to {final_filepath}")
+        return final_filepath
+    else:
+        # リネームに失敗した場合、ダウンロード先のディレクトリ構造が変わっている可能性がある
+        # ここでは単純化のため、ファイルが見つからないエラーとして処理
+        raise FileNotFoundError(
+            f"Downloaded file not found at expected path: {downloaded_path}. "
+            f"It might have been saved in a subdirectory within {model_dir}."
+        )
+
+# =================================================================================
+# ^^ ^^ ^^ ^^ ^^ ^^ ^^ ^^ ^^ ^^ ここまで置き換え ^^ ^^ ^^ ^^ ^^ ^^ ^^ ^^ ^^ ^^
+# =================================================================================
 
 
 def list_gguf():
