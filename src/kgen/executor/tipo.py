@@ -369,7 +369,7 @@ def generate_with_retry(
             "min_p": 0.1,
             "top_p": 0.95,
             "top_k": 60,
-            "max_new_tokens": 2048,
+            "max_new_tokens": 1024,
             "seed": seed + iter_count,
         }
         generation_setting.update(kwargs)
