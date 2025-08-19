@@ -77,12 +77,12 @@ TARGET_TIPO_NL = {
     "very_short": 1,
     "short": 2,
     "long": 4,
-    "very_long": 8,
+    "very_long": 15,
 }
 TARGET_TIPO_NL_MAX = {
     "very_short": 2,
     "short": 4,
-    "long": 8,
+    "long": 30,
     "very_long": 10000,
 }
 
