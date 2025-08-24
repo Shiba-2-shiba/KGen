@@ -10,6 +10,7 @@ from ..metainfo import (
     TARGET_TIPO_MAX,
     TARGET_TIPO_NL,
     TARGET_TIPO_NL_MAX,
+    TARGET_TIPO_ADD, 
 )
 
 
@@ -348,19 +349,50 @@ def generate_with_retry(
     seed=0,
     max_retry=10,
     max_same_output=5,
-    retry_criteria=retry_criteria,
+    retry_criteria_func=retry_criteria, # Renamed to avoid conflict
     total_timing=None,
     get_timing_detail=True,
     **kwargs,
 ):
+    # ========================================================================
+    # START OF MODIFICATION
+    # ========================================================================
+
+    # --- Determine target and loop conditions based on operation mode ---
+    if mode and "long" in mode:
+        # --- NL Generation Logic (Original Behavior) ---
+        target_type = "long"
+        target_tag_count = TARGET_TIPO_NL.get(length, 2)
+        # Define the loop condition based on the number of generated sentences
+        loop_condition = lambda p: len(p.get("generated", "").split(".")) < target_tag_count
+    else:
+        # --- Tag Generation Logic (New "Additive" Behavior) ---
+        target_type = "tag"
+        # Count the number of tags provided as input
+        num_input_tags = len([tag for tag in general.split(',') if tag.strip()])
+        # Calculate the target by adding the desired number of new tags
+        target_tag_count = num_input_tags + TARGET_TIPO_ADD.get(length, 6)
+        # Define the loop condition based on the total number of tags
+        loop_condition = lambda p: len(p.get("special", []) + p.get("general", [])) < target_tag_count
+
+    # ========================================================================
+    # END OF MODIFICATION
+    # ========================================================================
+
     iter_count = 0
     prev_output = set()
     same_output_count = 0
-    while iter_count <= max_retry and same_output_count < max_same_output:
+    
+    # The 'parsed' variable must be initialized before the loop
+    parsed = {} 
+
+    # Use the dynamically defined loop_condition
+    while loop_condition(parsed) and iter_count <= max_retry and same_output_count < max_same_output:
         if mode is not None:
             target = mode.split("_to_")[-1]
         else:
             target = "tag"
+            
         prompt = apply_tipo_prompt(
             meta, general, nl_prompt, mode, length, expand, gen_meta
         )
@@ -387,11 +419,15 @@ def generate_with_retry(
                 total_timing["initial_input_tokens"] = input_token_count
             for key in timing:
                 total_timing[key] = total_timing.get(key, 0) + timing[key]
+        
         parsed = parse_tipo_result(result)
         parsed = post_generate_process(
             parsed, meta, general, nl_prompt, mode, length, expand
         )
-        yield result, parsed
+        
+        # Yielding inside the loop is for generator functionality, keep it.
+        # But for the final result, we'll use the last 'parsed' value after the loop.
+        
         if target == "long" and "generated" not in parsed:
             target = "short"
 
@@ -400,9 +436,11 @@ def generate_with_retry(
             "short": slice(1, 2),
             "long": slice(2, 3),
         }
-        # print(mode, end=" ")
-        if retry_criteria(parsed, slices_map.get(target, slice(0, -1)), length):
+        
+        # Use the original retry_criteria function passed as an argument
+        if retry_criteria_func(parsed, slices_map.get(target, slice(0, -1)), length):
             break
+            
         iter_count += 1
         if result in prev_output:
             same_output_count += 1
@@ -415,6 +453,8 @@ def generate_with_retry(
         )
         general = ", ".join(parsed.get("special", []) + parsed.get("general", []))
         nl_prompt = nl_prompt.strip()
+        
+    # Yield the final result after the loop finishes
     yield result, parsed
 
 
