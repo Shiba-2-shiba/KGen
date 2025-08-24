@@ -72,18 +72,24 @@ TARGET_TIPO_MAX = {
     "long": 54,
     "very_long": 72,
 }
+TARGET_TIPO_ADD = {
+    "very_short": 2,
+    "short": 4,
+    "long": 6,
+    "very_long": 8,
+}
 # unit: sentences
 TARGET_TIPO_NL = {
     "very_short": 1,
     "short": 2,
-    "long": 4,
-    "very_long": 15,
+    "long": 3,
+    "very_long": 5,
 }
 TARGET_TIPO_NL_MAX = {
     "very_short": 2,
-    "short": 4,
-    "long": 30,
-    "very_long": 10000,
+    "short": 3,
+    "long": 4,
+    "very_long": 6,
 }
 
 TIPO_DEFAULT_FORMAT = {
